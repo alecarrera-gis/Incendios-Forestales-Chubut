@@ -5,13 +5,13 @@ var map = L.map('map', {
 });
 
 // (Opcional) Agregar un fondo OSM tenue para referencia
-var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.jpg', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
 // Capa "antes" desde tus tiles
-var layerBefore = L.tileLayer('20251125/{z}/{x}/{y}.png', {
+var layerBefore = L.tileLayer('20251125/{z}/{x}.jpg', {
   maxZoom: 18,
   attribution: 'Sentinel-2 Copernicus (antes)'
 });
