@@ -16,11 +16,12 @@ var layerBefore = L.tileLayer('20251125/{z}/{x}/{y}.png', {
   attribution: 'Sentinel-2 Copernicus (antes)'
 });
 
-// Capa "después" desde tus tiles
-var layerAfter = L.tileLayer('200119/{z}/{x}/{y}.png', {
+// Capa única (por ahora) con tus tiles
+var layerTiles = L.tileLayer('20260119/{z}/{x}.jpg', {
   maxZoom: 18,
-  attribution: 'Sentinel-2 Copernicus (después)'
-});
+  minZoom: 10, // ajustá según lo que generaste
+  attribution: 'Sentinel-2 Copernicus'
+}).addTo(map);
 
 // Agregamos inicialmente solo una (por ejemplo, la de después)
 layerAfter.addTo(map);
