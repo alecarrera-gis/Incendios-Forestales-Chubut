@@ -1,44 +1,60 @@
-// Crear el mapa centrado en tu zona
-var map = L.map('map', {
-  center: [-42.73, -71.69], // ajustar levemente si hace falta
-  zoom: 12
+/**
+ * Visor simple de tiles estáticos de Sentinel-2
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Iniciando visor de incendios...');
+
+    // Crear el mapa centrado en la zona de Chubut
+    const map = L.map('map', {
+        center: [-42.73, -71.69],
+        zoom: 12,
+        minZoom: 12,
+        maxZoom: 12
+    });
+
+    // Capa base de OpenStreetMap (opcional, para referencia)
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Capa de tiles de Sentinel-2 (carpeta 20260119)
+    const sentinel2Layer = L.tileLayer('20260119/{z}/{x}/{y}.jpg', {
+        maxZoom: 12,
+        minZoom: 12,
+        attribution: 'Sentinel-2 © Copernicus',
+        tileSize: 256
+      }).addTo(map);
+    
+map.setMinZoom(12);
+map.setMaxZoom(12);
+    // Control de capas
+    const baseLayers = {
+        'OpenStreetMap': osmLayer
+    };
+
+    const overlayLayers = {
+        'Sentinel-2 (2026-01-19)': sentinel2Layer
+    };
+
+    L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
+
+    console.log('✅ Mapa inicializado correctamente');
+
+    // Cuando tengas otra carpeta de tiles (ej: "20260125"), descomentá esto:
+    /*
+    const sentinel2Before = L.tileLayer('20260119/{z}/{x}/{y}.jpg', {
+        maxZoom: 18,
+        attribution: 'Sentinel-2 Antes'
+    });
+
+    const sentinel2After = L.tileLayer('20260125/{z}/{x}/{y}.jpg', {
+        maxZoom: 18,
+        attribution: 'Sentinel-2 Después'
+    });
+
+    // Control side-by-side
+    L.control.sideBySide(sentinel2Before, sentinel2After).addTo(map);
+    */
 });
-
-// (Opcional) Agregar un fondo OSM tenue para referencia
-var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{x}/{y}.jpg', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
-
-// Capa "antes" desde tus tiles
-var layerBefore = L.tileLayer('20251125/{x}/{y}.jpg', {
-  maxZoom: 18,
-  attribution: 'Sentinel-2 Copernicus (antes)'
-});
-
-// Capa única (por ahora) con tus tiles
-var layerTiles = L.tileLayer('20260119/{x}/{y}.jpg', {
-  maxZoom: 18,
-  minZoom: 10, // ajustá según lo que generaste
-  attribution: 'Sentinel-2 Copernicus'
-}).addTo(map);
-
-// Agregamos inicialmente solo una (por ejemplo, la de después)
-layerAfter.addTo(map);
-
-// Control de capas (por si querés alternar)
-var baseLayers = {
-  'OSM': osm
-};
-
-var overlayLayers = {
-  'Antes (tiles)': layerBefore,
-  'Después (tiles)': layerAfter
-};
-
-L.control.layers(baseLayers, overlayLayers, { collapsed: true }).addTo(map);
-
-// Control Side-by-Side
-L.control
-  .sideBySide(layerBefore, layerAfter)
-  .addTo(map);
