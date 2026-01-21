@@ -11,13 +11,13 @@ var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 // Capa "antes" desde tus tiles
-var layerBefore = L.tileLayer('tiles_antes/{z}/{x}/{y}.png', {
+var layerBefore = L.tileLayer('20251125/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: 'Sentinel-2 Copernicus (antes)'
 });
 
 // Capa "después" desde tus tiles
-var layerAfter = L.tileLayer('tiles_despues/{z}/{x}/{y}.png', {
+var layerAfter = L.tileLayer('200119/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: 'Sentinel-2 Copernicus (después)'
 });
