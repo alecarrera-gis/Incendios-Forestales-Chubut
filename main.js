@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Crear el mapa centrado en la zona de Chubut
     const map = L.map('map', {
         center: [-42.73, -71.69],
-        zoom: 8,
+        zoom: 14,
         minZoom: 8,
         maxZoom: 14
     });
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Capa base de OpenStreetMap
     const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
+        maxZoom: 114,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
