@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         weight: 2,
                         opacity: 0.8,
                         fillColor: "#ff7800",
-                        fillOpacity: 0.3
+                        fillOpacity: 0
                     };
                 },
                 onEachFeature: function (feature, layer) {
