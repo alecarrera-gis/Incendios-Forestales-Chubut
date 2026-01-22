@@ -1,10 +1,11 @@
 /**
- * Visor de Incendios con Comparador Side-by-Side
+ * Visor de Incendios Forestales - Chubut
+ * Versión GitHub Pages con Side-by-Side funcional
  */
 
 // Variables globales para el comparador
 let sideBySideControl = null;
-let isComparing = false;
+let comparisonLayers = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Iniciando visor de incendios...');
@@ -12,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Crear el mapa centrado en la zona de Chubut
     const map = L.map('map', {
         center: [-42.73, -71.69],
-        zoom: 14,
+        zoom: 13,
         minZoom: 8,
         maxZoom: 14
     });
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ========================================
     // Capas de Sentinel-2 (4 fechas distintas)
+    // NO SE AGREGAN AL MAPA AUTOMÁTICAMENTE
     // ========================================
     
     const sentinel2_20260119 = L.tileLayer('20260119 Sentinel/{z}/{x}/{y}.jpg', {
@@ -35,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         minZoom: 8,
         attribution: 'Sentinel-2 © Copernicus',
         tileSize: 256,
-        className: 'sentinel-layer' // Para aplicar el filtro de transparencia
+        className: 'sentinel-layer'
     });
 
     const sentinel2_20260109 = L.tileLayer('20260109 Sentinel/{z}/{x}/{y}.jpg', {
@@ -62,9 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
         className: 'sentinel-layer'
     });
 
-    // Agregar la más reciente por defecto
-    sentinel2_20260119.addTo(map);
-
     // Hacer las capas accesibles globalmente
     window.layers = {
         '20260119': sentinel2_20260119,
@@ -74,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ========================================
-    // Aplicar filtro de transparencia a las capas Sentinel
+    // Aplicar filtro de transparencia
     // ========================================
     applyTransparencyFilter();
 
@@ -110,33 +109,24 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(error => console.error('❌ Error cargando el GeoJSON:', error));
 
     // ========================================
-    // Control de capas
+    // Listeners para los checkboxes
     // ========================================
+    setupLayerCheckboxes();
+
+    // ========================================
+    // Botones de comparación
+    // ========================================
+    const btnCompare = document.getElementById('btn-compare-orthos');
+    const btnStop = document.getElementById('btn-stop-compare');
     
-    const baseLayers = {
-        'OpenStreetMap': osmLayer
-    };
-
-    const overlayLayers = {
-        'Sentinel-2 (19 Ene 2026)': sentinel2_20260119,
-        'Sentinel-2 (09 Ene 2026)': sentinel2_20260109,
-        'Sentinel-2 (04 Ene 2026)': sentinel2_20260104,
-        'Sentinel-2 (25 Nov 2025)': sentinel2_20251125
-    };
-
-    L.control.layers(baseLayers, overlayLayers, { collapsed: false }).addTo(map);
-
-    // ========================================
-    // Panel de Comparación con Checkboxes
-    // ========================================
-    
-    createComparisonPanel();
+    if (btnCompare) btnCompare.addEventListener('click', startComparison);
+    if (btnStop) btnStop.addEventListener('click', stopComparison);
 
     console.log('✅ Mapa inicializado correctamente');
 });
 
 /**
- * Aplica filtro CSS para hacer transparente el blanco en las imágenes Sentinel
+ * Aplica filtro CSS para hacer transparente el blanco
  */
 function applyTransparencyFilter() {
     const style = document.createElement('style');
@@ -145,152 +135,105 @@ function applyTransparencyFilter() {
             mix-blend-mode: multiply;
             opacity: 0.95;
         }
-        
-        /* Alternativa más agresiva (descomentá si la anterior no funciona bien) */
-        /*
-        .sentinel-layer img {
-            filter: brightness(1.1) contrast(1.1);
-            mix-blend-mode: darken;
-        }
-        */
     `;
     document.head.appendChild(style);
-    console.log('✅ Filtro de transparencia aplicado');
 }
 
 /**
- * Crea el panel de comparación con checkboxes
+ * Configura los checkboxes para mostrar/ocultar capas
  */
-function createComparisonPanel() {
-    const panel = document.createElement('div');
-    panel.id = 'comparison-panel';
-    panel.innerHTML = `
-        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); position: absolute; top: 10px; right: 10px; z-index: 1000; min-width: 280px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 16px;">🔍 Comparador de Imágenes</h3>
-            
-            <div style="margin-bottom: 15px;">
-                <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold;">Seleccioná 2 imágenes para comparar:</p>
-                
-                <label style="display: block; margin-bottom: 5px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" class="compare-checkbox" value="20251125" style="margin-right: 5px;">
-                    25 Nov 2025 (Antes del incendio)
-                </label>
-                
-                <label style="display: block; margin-bottom: 5px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" class="compare-checkbox" value="20260104" style="margin-right: 5px;">
-                    04 Ene 2026
-                </label>
-                
-                <label style="display: block; margin-bottom: 5px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" class="compare-checkbox" value="20260109" style="margin-right: 5px;">
-                    09 Ene 2026
-                </label>
-                
-                <label style="display: block; margin-bottom: 5px; font-size: 12px; cursor: pointer;">
-                    <input type="checkbox" class="compare-checkbox" value="20260119" style="margin-right: 5px;">
-                    19 Ene 2026 (Más reciente)
-                </label>
-            </div>
-            
-            <button id="btn-start-compare" onclick="startComparison()" style="width: 100%; padding: 8px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">
-                ▶ Iniciar Comparación
-            </button>
-            
-            <button id="btn-stop-compare" onclick="stopComparison()" style="width: 100%; padding: 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: none;">
-                ⏹ Detener Comparación
-            </button>
-            
-            <p id="compare-status" style="margin: 8px 0 0 0; font-size: 11px; color: #666; text-align: center;"></p>
-        </div>
-    `;
-    document.body.appendChild(panel);
-
-    // Listener para actualizar el contador y limitar a 2 selecciones
-    document.querySelectorAll('.compare-checkbox').forEach(checkbox => {
+function setupLayerCheckboxes() {
+    const checkboxes = document.querySelectorAll('.ortho-checkbox');
+    
+    checkboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const checked = document.querySelectorAll('.compare-checkbox:checked');
+            const layerId = this.value;
+            const layer = window.layers[layerId];
+            const map = window.map;
             
-            // Si ya hay 2 seleccionados, deshabilitar los demás
-            if (checked.length >= 2) {
-                document.querySelectorAll('.compare-checkbox:not(:checked)').forEach(cb => {
-                    cb.disabled = true;
-                });
+            if (this.checked) {
+                layer.addTo(map);
+                console.log(`✅ Capa ${layerId} agregada`);
             } else {
-                document.querySelectorAll('.compare-checkbox').forEach(cb => {
-                    cb.disabled = false;
-                });
+                map.removeLayer(layer);
+                console.log(`❌ Capa ${layerId} removida`);
             }
-            
-            updateCompareStatus();
         });
     });
-    
-    updateCompareStatus();
-}
-
-/**
- * Actualiza el mensaje de estado según cuántas capas están seleccionadas
- */
-function updateCompareStatus() {
-    const checked = document.querySelectorAll('.compare-checkbox:checked');
-    const status = document.getElementById('compare-status');
-    
-    if (checked.length === 0) {
-        status.textContent = 'Seleccioná 2 imágenes';
-        status.style.color = '#666';
-    } else if (checked.length === 1) {
-        status.textContent = 'Seleccioná 1 imagen más';
-        status.style.color = '#ff9800';
-    } else if (checked.length === 2) {
-        status.textContent = '✓ Listo para comparar';
-        status.style.color = '#28a745';
-    }
 }
 
 /**
  * Inicia la comparación side-by-side
  */
 function startComparison() {
-    const checked = document.querySelectorAll('.compare-checkbox:checked');
+    const checkedBoxes = document.querySelectorAll('.ortho-checkbox:checked');
     
-    if (checked.length !== 2) {
-        alert('⚠️ Tenés que seleccionar exactamente 2 imágenes para comparar');
+    if (checkedBoxes.length < 2) {
+        alert('⚠️ Necesitás activar al menos 2 ortomosaicos para comparar');
         return;
     }
 
     const map = window.map;
-    const leftLayerId = checked[0].value;
-    const rightLayerId = checked[1].value;
-    
-    const leftLayer = window.layers[leftLayerId];
-    const rightLayer = window.layers[rightLayerId];
+    const layerLeft = window.layers[checkedBoxes[0].value];
+    const layerRight = window.layers[checkedBoxes[1].value];
 
-    console.log('Comparando:', leftLayerId, 'vs', rightLayerId);
+    if (!layerLeft || !layerRight) {
+        alert('❌ Error al obtener las capas seleccionadas');
+        return;
+    }
 
-    // Limpiar capas de Sentinel-2 anteriores (mantener OSM)
-    map.eachLayer(layer => {
-        if (layer instanceof L.TileLayer && layer._url && layer._url.includes('Sentinel')) {
-            map.removeLayer(layer);
-        }
-    });
-
-    // Agregar las capas seleccionadas
-    leftLayer.addTo(map);
-    rightLayer.addTo(map);
-
-    // Crear el control side-by-side
     try {
-        sideBySideControl = L.control.sideBySide(leftLayer, rightLayer);
+        // 1. Limpieza previa
+        stopComparison();
+
+        // 2. Crear Panes personalizados
+        if (!map.getPane('leftPane')) map.createPane('leftPane');
+        if (!map.getPane('rightPane')) map.createPane('rightPane');
+        map.getPane('leftPane').style.zIndex = 401;
+        map.getPane('rightPane').style.zIndex = 402;
+
+        // 3. Asignar capas a los panes
+        layerLeft.options.pane = 'leftPane';
+        layerRight.options.pane = 'rightPane';
+
+        // 4. Remover y re-agregar para forzar el cambio de pane
+        map.removeLayer(layerLeft);
+        map.removeLayer(layerRight);
+        map.addLayer(layerLeft);
+        map.addLayer(layerRight);
+
+        // 5. Crear el control side-by-side
+        sideBySideControl = L.control.sideBySide(layerLeft, layerRight);
+        
+        // 6. Sobreescribir el método _updateClip para que funcione con panes
+        sideBySideControl._updateClip = function() {
+            const map = this._map;
+            if (!map) return;
+            
+            const nw = map.containerPointToLayerPoint([0, 0]);
+            const se = map.containerPointToLayerPoint(map.getSize());
+            const clipX = nw.x + (this._range.value * map.getSize().x);
+            const dividerX = this._range.value * map.getSize().x;
+            
+            this._divider.style.left = dividerX + 'px';
+
+            const clipLeft = `rect(${nw.y}px, ${clipX}px, ${se.y}px, ${nw.x}px)`;
+            const clipRight = `rect(${nw.y}px, ${se.x}px, ${se.y}px, ${clipX}px)`;
+
+            map.getPane('leftPane').style.clip = clipLeft;
+            map.getPane('rightPane').style.clip = clipRight;
+        };
+
+        // 7. Agregar al mapa
         sideBySideControl.addTo(map);
-        
-        isComparing = true;
-        document.getElementById('btn-start-compare').style.display = 'none';
+
+        // 8. Cambiar botones
+        document.getElementById('btn-compare-orthos').style.display = 'none';
         document.getElementById('btn-stop-compare').style.display = 'block';
-        
-        // Deshabilitar checkboxes durante la comparación
-        document.querySelectorAll('.compare-checkbox').forEach(cb => cb.disabled = true);
-        
+
+        comparisonLayers = [layerLeft, layerRight];
         console.log('✅ Comparación iniciada');
+
     } catch (error) {
         console.error('❌ Error al iniciar comparación:', error);
         alert('Error al crear el comparador: ' + error.message);
@@ -301,41 +244,43 @@ function startComparison() {
  * Detiene la comparación
  */
 function stopComparison() {
+    const map = window.map;
+    if (!map) return;
+
+    // 1. Quitar control
     if (sideBySideControl) {
-        const map = window.map;
-        map.removeControl(sideBySideControl);
-        sideBySideControl = null;
-        
-        // Limpiar capas de Sentinel-2
-        map.eachLayer(layer => {
-            if (layer instanceof L.TileLayer && layer._url && layer._url.includes('Sentinel')) {
-                map.removeLayer(layer);
-                
-                // Limpiar el clip CSS
-                if (layer.getContainer) {
-                    const container = layer.getContainer();
-                    if (container) {
-                        container.style.clip = '';
-                    }
-                }
-            }
-        });
-        
-        // Restaurar la capa más reciente
-        window.layers['20260119'].addTo(map);
-        
-        isComparing = false;
-        document.getElementById('btn-start-compare').style.display = 'block';
-        document.getElementById('btn-stop-compare').style.display = 'none';
-        
-        // Rehabilitar checkboxes y limpiar selección
-        document.querySelectorAll('.compare-checkbox').forEach(cb => {
-            cb.disabled = false;
-            cb.checked = false;
-        });
-        
-        updateCompareStatus();
-        
-        console.log('❌ Comparación detenida');
+        try {
+            map.removeControl(sideBySideControl);
+        } catch (e) {
+            console.warn('Error al remover control:', e);
+        }
     }
+
+    // 2. Limpiar elementos del DOM
+    document.querySelectorAll('.leaflet-sbs').forEach(el => el.remove());
+
+    // 3. Limpiar clips de los panes
+    if (map.getPane('leftPane')) map.getPane('leftPane').style.clip = '';
+    if (map.getPane('rightPane')) map.getPane('rightPane').style.clip = '';
+
+    // 4. Devolver capas al pane original
+    comparisonLayers.forEach(layer => {
+        if (layer) {
+            layer.options.pane = 'tilePane';
+            if (map.hasLayer(layer)) {
+                map.removeLayer(layer);
+                map.addLayer(layer);
+            }
+        }
+    });
+
+    // 5. Resetear variables y UI
+    sideBySideControl = null;
+    comparisonLayers = [];
+    
+    document.getElementById('btn-compare-orthos').style.display = 'block';
+    document.getElementById('btn-stop-compare').style.display = 'none';
+    
+    map.invalidateSize();
+    console.log('❌ Comparación detenida');
 }
