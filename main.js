@@ -1,6 +1,3 @@
-/**
- * Lógica principal de la aplicación - Versión Limpia (Sin Slider)
- */
 
 // Variables globales para el perfil de elevación
 let elevChart;
@@ -10,8 +7,23 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Iniciando aplicación...');
     
     // 1. Inicializar Mapa 2D
-    const map2dObj = new Map2D('map-2d');
-    window.map2d = map2dObj;
+    // 1. Inicializar Mapa Leaflet directamente (reemplaza Map2D)
+    const map = L.map('map', {
+    center: [-42.73, -71.69],
+    zoom: 13,
+    minZoom: 8,
+    maxZoom: 14
+    });
+
+    // Capa base OSM (ajustá si ya tenés otra en map2d.js)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Simulamos el objeto esperado por el resto del código
+    const map2dObj = { map };
+    window['map2d'] = map2dObj;
 
     // 2. Inicializar Control de Capas
     if (window.LayerControl) {
