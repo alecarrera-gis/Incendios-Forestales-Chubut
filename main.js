@@ -1,96 +1,120 @@
-
-// Variables globales para el perfil de elevación
-let elevChart;
+// Variables globales
+let map;
 let drawnItems;
+let elevChart;
+let activeOrthoLayers = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Iniciando aplicación...');
     
-    // 1. Inicializar Mapa 2D
-    // 1. Inicializar Mapa Leaflet directamente (reemplaza Map2D)
-    const map = L.map('map', {
-    center: [-42.73, -71.69],
-    zoom: 13,
-    minZoom: 8,
-    maxZoom: 14
+    // 1. Inicializar Mapa
+    map = L.map('map', {
+        center: [-42.73, -71.69],
+        zoom: 13,
+        minZoom: 8,
+        maxZoom: 14
     });
 
-    // Capa base OSM (ajustá si ya tenés otra en map2d.js)
+    // Capa base OSM
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Simulamos el objeto esperado por el resto del código
-    const map2dObj = { map };
-    window['map2d'] = map2dObj;
+    // 2. Configurar checkboxes de ortomosaicos
+    setupOrthoCheckboxes();
 
-    // 2. Inicializar Control de Capas
-    if (window.LayerControl) {
-        const layerControl = new LayerControl(map2dObj);
-        window.layerControl = layerControl;
-    }
+    // 3. Configurar botones de herramientas
+    setupToolButtons();
 
-    // 3. Configurar navegación
-    setupNavigation();
-
-    // 4. Inicializar herramientas de dibujo
-    setTimeout(() => {
-        if (map2dObj.map) {
-            initDrawTools(map2dObj.map);
-        }
-    }, 500);
+    // 4. Cargar GeoJSON de áreas afectadas
+    cargarGeoJSON();
 
     // 5. Inicializar arrastre del perfil
     initDragProfile();
     
-    // 6. Cargar GeoJSON de áreas afectadas
-    cargarGeoJSON(map2dObj.map);
+    console.log('✅ Aplicación iniciada correctamente');
 });
 
 /**
- * Carga el GeoJSON de áreas afectadas con estilo de solo borde
+ * Configura los checkboxes de ortomosaicos
  */
-function cargarGeoJSON(map) {
-    fetch('Areas_afectadas.geojson')
-        .then(response => response.json())
-        .then(data => {
-            L.geoJSON(data, {
-                style: function (feature) {
-                    return {
-                        color: "#ff0000",
-                        weight: 2,
-                        opacity: 0.8,
-                        fillOpacity: 0 // Sin relleno
-                    };
-                },
-                onEachFeature: function (feature, layer) {
-                    if (feature.properties) {
-                        let popupContent = '<strong>Área Afectada</strong><br>';
-                        for (let key in feature.properties) {
-                            popupContent += `${key}: ${feature.properties[key]}<br>`;
-                        }
-                        layer.bindPopup(popupContent);
-                    }
+function setupOrthoCheckboxes() {
+    const checkboxes = document.querySelectorAll('.ortho-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const folderName = this.value;
+            const layerName = this.getAttribute('data-name');
+            
+            if (this.checked) {
+                // Crear y agregar la capa
+                const tileUrl = `${encodeURIComponent(folderName)}/{z}/{x}/{y}.png`;
+                const layer = L.tileLayer(tileUrl, {
+                    maxZoom: 14,
+                    minZoom: 8,
+                    attribution: `Sentinel-2 ${layerName} © Copernicus`
+                });
+                
+                layer.addTo(map);
+                activeOrthoLayers[layerName] = layer;
+                console.log(`✅ Capa ${layerName} activada`);
+            } else {
+                // Remover la capa
+                if (activeOrthoLayers[layerName]) {
+                    map.removeLayer(activeOrthoLayers[layerName]);
+                    delete activeOrthoLayers[layerName];
+                    console.log(`❌ Capa ${layerName} desactivada`);
                 }
-            }).addTo(map);
-            console.log('✅ GeoJSON cargado correctamente');
-        })
-        .catch(error => console.error('❌ Error cargando el GeoJSON:', error));
+            }
+        });
+    });
 }
 
 /**
- * Inicializa las herramientas de dibujo de Leaflet.Draw
+ * Configura los botones de herramientas
  */
-function initDrawTools(map) {
+function setupToolButtons() {
+    // Botón para dibujar
+    document.getElementById('btn-draw').addEventListener('click', () => {
+        initDrawTools();
+        alert('Modo dibujo activado. Dibujá una línea en el mapa para generar el perfil.');
+    });
+    
+    // Botón para limpiar
+    document.getElementById('btn-clear').addEventListener('click', () => {
+        if (drawnItems) {
+            drawnItems.clearLayers();
+        }
+        closeProfile();
+    });
+}
+
+/**
+ * Inicializa las herramientas de dibujo
+ */
+function initDrawTools() {
+    // Limpiar herramientas anteriores si existen
+    if (drawnItems) {
+        map.removeLayer(drawnItems);
+    }
+    
+    // Crear nuevo grupo de elementos dibujados
     drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
-
+    
+    // Configurar control de dibujo
     const drawControl = new L.Control.Draw({
-        edit: { featureGroup: drawnItems },
+        edit: {
+            featureGroup: drawnItems,
+            remove: true
+        },
         draw: {
-            polyline: { 
-                shapeOptions: { color: '#f39c12', weight: 4 },
+            polyline: {
+                shapeOptions: {
+                    color: '#f39c12',
+                    weight: 4
+                },
                 metric: true,
                 feet: false
             },
@@ -101,147 +125,219 @@ function initDrawTools(map) {
             circlemarker: false
         }
     });
+    
+    // Agregar control al mapa
     map.addControl(drawControl);
-
-    map.on(L.Draw.Event.CREATED, async (e) => {
-        drawnItems.clearLayers();
-        drawnItems.addLayer(e.layer);
-
-        if (e.layerType !== 'polyline') return;
-
-        const coordinates = e.layer.getLatLngs().map(p => [p.lng, p.lat]);
-        const demCheckboxes = document.querySelectorAll('#dem-layers input[type="checkbox"]:checked');
-        const activeDems = Array.from(demCheckboxes).map(cb => cb.value);
-
-        if (activeDems.length === 0) {
-            alert('Activá al menos un DEM para generar el perfil');
-            return;
+    
+    // Escuchar eventos de dibujo
+    map.on(L.Draw.Event.CREATED, (e) => {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        
+        // Si es una línea, generar perfil simulado
+        if (e.layerType === 'polyline') {
+            generateSimulatedProfile(layer);
         }
-
-        try {
-            const requests = activeDems.map(dem =>
-                fetch('http://localhost:3001/api/elevation/profile', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        coordinates,
-                        file: dem,
-                        numSamples: 100
-                    })
-                }).then(r => r.json())
-            );
-
-            const results = await Promise.all(requests);
-            renderMultiElevChart(results, activeDems);
-
-        } catch (err) {
-            console.error(err);
-            alert('Error al obtener perfiles');
-        }
+        
+        // Remover el control de dibujo después de crear
+        map.removeControl(drawControl);
     });
 }
 
 /**
- * Configura la navegación entre vistas
+ * Genera un perfil de elevación simulado (para demo)
  */
-function setupNavigation() {
-    const btn2d = document.getElementById('btn-2d');
-    const btn3d = document.getElementById('btn-3d');
-    const map2dContainer = document.getElementById('map-2d');
-    const map3dContainer = document.getElementById('map-3d');
-
-    if (btn2d) {
-        btn2d.addEventListener('click', () => {
-            map2dContainer.style.display = 'block';
-            map3dContainer.style.display = 'none';
-            btn2d.classList.add('active');
-            btn3d.classList.remove('active');
+function generateSimulatedProfile(polylineLayer) {
+    const latlngs = polylineLayer.getLatLngs();
+    
+    if (latlngs.length < 2) {
+        alert('La línea debe tener al menos 2 puntos');
+        return;
+    }
+    
+    // Calcular distancia total aproximada
+    let totalDistance = 0;
+    for (let i = 1; i < latlngs.length; i++) {
+        const prev = latlngs[i-1];
+        const curr = latlngs[i];
+        totalDistance += prev.distanceTo(curr);
+    }
+    
+    // Generar datos simulados del perfil
+    const profileData = [];
+    const numPoints = 50;
+    
+    for (let i = 0; i <= numPoints; i++) {
+        const distance = (totalDistance / numPoints) * i;
+        // Simular elevación con variaciones
+        const elevation = 500 + Math.sin(i * 0.3) * 200 + Math.random() * 50;
+        
+        profileData.push({
+            x: distance,
+            y: elevation
         });
     }
-
-    if (btn3d) {
-        btn3d.addEventListener('click', () => {
-            alert('Vista 3D en desarrollo');
-        });
-    }
+    
+    // Mostrar el gráfico
+    renderElevationChart(profileData, totalDistance);
 }
 
 /**
  * Renderiza el gráfico de elevación
  */
-function renderMultiElevChart(results, demNames) {
+function renderElevationChart(data, totalDistance) {
     const ctx = document.getElementById('elevChart');
     if (!ctx) return;
-
-    if (elevChart) elevChart.destroy();
-
-    const colors = ['#2c7be5', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6'];
-    const datasets = results.map((res, idx) => {
-        const rawProfile = res.profile || [];
-        const cleanData = rawProfile
-            .filter(p => p.elevation !== null && p.elevation !== undefined)
-            .map(p => ({ x: parseFloat(p.distance), y: parseFloat(p.elevation) }))
-            .filter(p => !isNaN(p.x) && !isNaN(p.y))
-            .sort((a, b) => a.x - b.x);
-
-        return {
-            label: demNames[idx].replace('_cog.tif', ''),
-            data: cleanData,
-            borderColor: colors[idx % colors.length],
-            backgroundColor: 'transparent',
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: 0.2
-        };
-    });
-
-    document.getElementById('profileContainer').style.display = 'flex';
-
-    elevChart = new Chart(ctx, {
+    
+    // Destruir gráfico anterior si existe
+    if (elevChart) {
+        elevChart.destroy();
+    }
+    
+    // Configurar el gráfico
+    const chartConfig = {
         type: 'line',
-        data: { datasets },
+        data: {
+            datasets: [{
+                label: 'Perfil de Elevación',
+                data: data,
+                borderColor: '#2c7be5',
+                backgroundColor: 'rgba(44, 123, 229, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: true, position: 'top' }
-            },
             scales: {
-                x: { type: 'linear', title: { display: true, text: 'Distancia (m)' } },
-                y: { title: { display: true, text: 'Elevación (m)' } }
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Distancia (metros)'
+                    },
+                    min: 0,
+                    max: totalDistance
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Elevación (metros)'
+                    },
+                    beginAtZero: false
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            return `Elevación: ${context.parsed.y.toFixed(1)} m`;
+                        }
+                    }
+                }
             }
         }
-    });
+    };
+    
+    elevChart = new Chart(ctx, chartConfig);
+    
+    // Mostrar el contenedor del perfil
+    document.getElementById('profileContainer').style.display = 'flex';
 }
 
+/**
+ * Cierra el panel del perfil
+ */
 function closeProfile() {
     document.getElementById('profileContainer').style.display = 'none';
-    if (drawnItems) drawnItems.clearLayers();
-    if (elevChart) elevChart.destroy();
+    if (elevChart) {
+        elevChart.destroy();
+        elevChart = null;
+    }
 }
 
+/**
+ * Inicializa el arrastre del panel de perfil
+ */
 function initDragProfile() {
     const dragItem = document.getElementById('profileContainer');
     const dragHeader = document.getElementById('profileHeader');
     if (!dragItem || !dragHeader) return;
 
-    let active = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
+    let isDragging = false;
+    let currentX, currentY, initialX, initialY;
 
-    dragHeader.addEventListener('mousedown', (e) => {
-        initialX = e.clientX - xOffset;
-        initialY = e.clientY - yOffset;
-        if (e.target === dragHeader || dragHeader.contains(e.target)) active = true;
-    });
-    document.addEventListener('mouseup', () => {
-        initialX = currentX; initialY = currentY; active = false;
-    });
-    document.addEventListener('mousemove', (e) => {
-        if (active) {
-            e.preventDefault();
-            currentX = e.clientX - initialX;
-            currentY = e.clientY - initialY;
-            xOffset = currentX; yOffset = currentY;
-            dragItem.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
-        }
-    });
+    dragHeader.addEventListener('mousedown', startDragging);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDragging);
+
+    function startDragging(e) {
+        isDragging = true;
+        initialX = e.clientX - dragItem.offsetLeft;
+        initialY = e.clientY - dragItem.offsetTop;
+        dragHeader.style.cursor = 'grabbing';
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+        
+        // Limitar el arrastre dentro de la ventana
+        const maxX = window.innerWidth - dragItem.offsetWidth;
+        const maxY = window.innerHeight - dragItem.offsetHeight;
+        
+        currentX = Math.max(0, Math.min(currentX, maxX));
+        currentY = Math.max(0, Math.min(currentY, maxY));
+        
+        dragItem.style.left = currentX + 'px';
+        dragItem.style.top = currentY + 'px';
+    }
+
+    function stopDragging() {
+        isDragging = false;
+        dragHeader.style.cursor = 'move';
+    }
+}
+
+/**
+ * Carga el GeoJSON de áreas afectadas
+ */
+function cargarGeoJSON() {
+    fetch('Areas_afectadas.geojson')
+        .then(response => response.json())
+        .then(data => {
+            L.geoJSON(data, {
+                style: function () {
+                    return {
+                        color: "#ff0000",
+                        weight: 2,
+                        opacity: 0.8,
+                        fillOpacity: 0
+                    };
+                },
+                onEachFeature: function (feature, layer) {
+                    if (feature.properties) {
+                        let popupContent = '<strong>Área Afectada</strong><br>';
+                        for (let key in feature.properties) {
+                            popupContent += `<strong>${key}:</strong> ${feature.properties[key]}<br>`;
+                        }
+                        layer.bindPopup(popupContent);
+                    }
+                }
+            }).addTo(map);
+            console.log('✅ GeoJSON cargado correctamente');
+        })
+        .catch(error => {
+            console.error('❌ Error cargando el GeoJSON:', error);
+            console.log('ℹ️ Asegurate de que el archivo Areas_afectadas.geojson esté en la raíz del proyecto');
+        });
 }
