@@ -1,18 +1,19 @@
 .leaflet-sbs-range {
-  position: absolute;
-  top: 50%;
-  width: 100%;
-  z-index: 999;
+    position: absolute;
+    top: 50%;
+    width: 100%;
+    z-index: 999;
+    pointer-events: fill;
 }
 
 .leaflet-sbs-divider {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  margin-left: -2px;
-  width: 4px;
-  background-color: #fff;
-  pointer-events: none;
-  z-index: 999;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    margin-left: -2px;
+    width: 4px;
+    background-color: #fff;
+    pointer-events: none;
+    z-index: 999;
 }
