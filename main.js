@@ -203,7 +203,7 @@ function startComparison() {
         map.addLayer(layerRight);
 
         // 5. Crear el control side-by-side
-        sideBySideControl = L.control.sideBySide(layerLeft, layerRight);
+        sideBySideControl = L.control.sideBySide([layerLeft], [layerRight]);
         
         // 6. Sobreescribir el método _updateClip para que funcione con panes
         sideBySideControl._updateClip = function() {
