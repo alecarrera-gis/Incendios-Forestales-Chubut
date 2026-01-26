@@ -1,86 +1,45 @@
 /**
- * Visor de Incendios Forestales - Chubut
- * Versión GitHub Pages con Side-by-Side funcional
+ * Lógica principal de la aplicación - Versión Limpia (Sin Slider)
  */
 
-// Variables globales para el comparador
-let sideBySideControl = null;
-let comparisonLayers = [];
+// Variables globales para el perfil de elevación
+let elevChart;
+let drawnItems;
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('Iniciando visor de incendios...');
-
-    // Crear el mapa centrado en la zona de Chubut
-    const map = L.map('map', {
-        center: [-42.73, -71.69],
-        zoom: 13,
-        minZoom: 8,
-        maxZoom: 14
-    });
-
-    // Hacer el mapa accesible globalmente
-    window.map = map;
-
-    // Capa base de OpenStreetMap
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    // ========================================
-    // Capas de Sentinel-2 (4 fechas distintas)
-    // NO SE AGREGAN AL MAPA AUTOMÁTICAMENTE
-    // ========================================
+    console.log('Iniciando aplicación...');
     
-    const sentinel2_20260119 = L.tileLayer('20260119 Sentinel/{z}/{x}/{y}.jpg', {
-        maxZoom: 14,
-        minZoom: 8,
-        attribution: 'Sentinel-2 © Copernicus',
-        tileSize: 256,
-        className: 'sentinel-layer'
-    });
+    // 1. Inicializar Mapa 2D
+    const map2dObj = new Map2D('map-2d');
+    window.map2d = map2dObj;
 
-    const sentinel2_20260109 = L.tileLayer('20260109 Sentinel/{z}/{x}/{y}.jpg', {
-        maxZoom: 14,
-        minZoom: 8,
-        attribution: 'Sentinel-2 © Copernicus',
-        tileSize: 256,
-        className: 'sentinel-layer'
-    });
+    // 2. Inicializar Control de Capas
+    if (window.LayerControl) {
+        const layerControl = new LayerControl(map2dObj);
+        window.layerControl = layerControl;
+    }
 
-    const sentinel2_20260104 = L.tileLayer('20260104 Sentinel/{z}/{x}/{y}.jpg', {
-        maxZoom: 14,
-        minZoom: 8,
-        attribution: 'Sentinel-2 © Copernicus',
-        tileSize: 256,
-        className: 'sentinel-layer'
-    });
+    // 3. Configurar navegación
+    setupNavigation();
 
-    const sentinel2_20251125 = L.tileLayer('20251125 Sentinel/{z}/{x}/{y}.jpg', {
-        maxZoom: 14,
-        minZoom: 8,
-        attribution: 'Sentinel-2 © Copernicus',
-        tileSize: 256,
-        className: 'sentinel-layer'
-    });
+    // 4. Inicializar herramientas de dibujo
+    setTimeout(() => {
+        if (map2dObj.map) {
+            initDrawTools(map2dObj.map);
+        }
+    }, 500);
 
-    // Hacer las capas accesibles globalmente
-    window.layers = {
-        '20260119': sentinel2_20260119,
-        '20260109': sentinel2_20260109,
-        '20260104': sentinel2_20260104,
-        '20251125': sentinel2_20251125
-    };
-
-    // ========================================
-    // Aplicar filtro de transparencia
-    // ========================================
-    applyTransparencyFilter();
-
-    // ========================================
-    // Cargar el GeoJSON de áreas afectadas
-    // ========================================
+    // 5. Inicializar arrastre del perfil
+    initDragProfile();
     
+    // 6. Cargar GeoJSON de áreas afectadas
+    cargarGeoJSON(map2dObj.map);
+});
+
+/**
+ * Carga el GeoJSON de áreas afectadas con estilo de solo borde
+ */
+function cargarGeoJSON(map) {
     fetch('Areas_afectadas.geojson')
         .then(response => response.json())
         .then(data => {
@@ -90,8 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         color: "#ff0000",
                         weight: 2,
                         opacity: 0.8,
-                        fillColor: "#ff7800",
-                        fillOpacity: 0
+                        fillOpacity: 0 // Sin relleno
                     };
                 },
                 onEachFeature: function (feature, layer) {
@@ -107,180 +65,171 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('✅ GeoJSON cargado correctamente');
         })
         .catch(error => console.error('❌ Error cargando el GeoJSON:', error));
-
-    // ========================================
-    // Listeners para los checkboxes
-    // ========================================
-    setupLayerCheckboxes();
-
-    // ========================================
-    // Botones de comparación
-    // ========================================
-    const btnCompare = document.getElementById('btn-compare-orthos');
-    const btnStop = document.getElementById('btn-stop-compare');
-    
-    if (btnCompare) btnCompare.addEventListener('click', startComparison);
-    if (btnStop) btnStop.addEventListener('click', stopComparison);
-
-    console.log('✅ Mapa inicializado correctamente');
-});
+}
 
 /**
- * Aplica filtro CSS para hacer transparente el blanco
+ * Inicializa las herramientas de dibujo de Leaflet.Draw
  */
-function applyTransparencyFilter() {
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .sentinel-layer {
-            mix-blend-mode: multiply;
-            opacity: 0.95;
+function initDrawTools(map) {
+    drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: { featureGroup: drawnItems },
+        draw: {
+            polyline: { 
+                shapeOptions: { color: '#f39c12', weight: 4 },
+                metric: true,
+                feet: false
+            },
+            polygon: false,
+            rectangle: false,
+            circle: false,
+            marker: false,
+            circlemarker: false
         }
-    `;
-    document.head.appendChild(style);
-}
-
-/**
- * Configura los checkboxes para mostrar/ocultar capas
- */
-function setupLayerCheckboxes() {
-    const checkboxes = document.querySelectorAll('.ortho-checkbox');
-    
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const layerId = this.value;
-            const layer = window.layers[layerId];
-            const map = window.map;
-            
-            if (this.checked) {
-                layer.addTo(map);
-                console.log(`✅ Capa ${layerId} agregada`);
-            } else {
-                map.removeLayer(layer);
-                console.log(`❌ Capa ${layerId} removida`);
-            }
-        });
     });
-}
+    map.addControl(drawControl);
 
-/**
- * Inicia la comparación side-by-side
- */
-function startComparison() {
-    const checkedBoxes = document.querySelectorAll('.ortho-checkbox:checked');
-    
-    if (checkedBoxes.length < 2) {
-        alert('⚠️ Necesitás activar al menos 2 ortomosaicos para comparar');
-        return;
-    }
+    map.on(L.Draw.Event.CREATED, async (e) => {
+        drawnItems.clearLayers();
+        drawnItems.addLayer(e.layer);
 
-    const map = window.map;
-    const layerLeft = window.layers[checkedBoxes[0].value];
-    const layerRight = window.layers[checkedBoxes[1].value];
+        if (e.layerType !== 'polyline') return;
 
-    if (!layerLeft || !layerRight) {
-        alert('❌ Error al obtener las capas seleccionadas');
-        return;
-    }
+        const coordinates = e.layer.getLatLngs().map(p => [p.lng, p.lat]);
+        const demCheckboxes = document.querySelectorAll('#dem-layers input[type="checkbox"]:checked');
+        const activeDems = Array.from(demCheckboxes).map(cb => cb.value);
 
-    try {
-        // 1. Limpieza previa
-        stopComparison();
+        if (activeDems.length === 0) {
+            alert('Activá al menos un DEM para generar el perfil');
+            return;
+        }
 
-        // 2. Crear Panes personalizados
-        if (!map.getPane('leftPane')) map.createPane('leftPane');
-        if (!map.getPane('rightPane')) map.createPane('rightPane');
-        map.getPane('leftPane').style.zIndex = 401;
-        map.getPane('rightPane').style.zIndex = 402;
-
-        // 3. Asignar capas a los panes
-        layerLeft.options.pane = 'leftPane';
-        layerRight.options.pane = 'rightPane';
-
-        // 4. Remover y re-agregar para forzar el cambio de pane
-        map.removeLayer(layerLeft);
-        map.removeLayer(layerRight);
-        map.addLayer(layerLeft);
-        map.addLayer(layerRight);
-
-        // 5. Crear el control side-by-side
-        sideBySideControl = L.control.sideBySide([layerLeft], [layerRight]);
-        
-        // 6. Sobreescribir el método _updateClip para que funcione con panes
-        sideBySideControl._updateClip = function() {
-            const map = this._map;
-            if (!map) return;
-            
-            const nw = map.containerPointToLayerPoint([0, 0]);
-            const se = map.containerPointToLayerPoint(map.getSize());
-            const clipX = nw.x + (this._range.value * map.getSize().x);
-            const dividerX = this._range.value * map.getSize().x;
-            
-            this._divider.style.left = dividerX + 'px';
-
-            const clipLeft = `rect(${nw.y}px, ${clipX}px, ${se.y}px, ${nw.x}px)`;
-            const clipRight = `rect(${nw.y}px, ${se.x}px, ${se.y}px, ${clipX}px)`;
-
-            map.getPane('leftPane').style.clip = clipLeft;
-            map.getPane('rightPane').style.clip = clipRight;
-        };
-
-        // 7. Agregar al mapa
-        sideBySideControl.addTo(map);
-
-        // 8. Cambiar botones
-        document.getElementById('btn-compare-orthos').style.display = 'none';
-        document.getElementById('btn-stop-compare').style.display = 'block';
-
-        comparisonLayers = [layerLeft, layerRight];
-        console.log('✅ Comparación iniciada');
-
-    } catch (error) {
-        console.error('❌ Error al iniciar comparación:', error);
-        alert('Error al crear el comparador: ' + error.message);
-    }
-}
-
-/**
- * Detiene la comparación
- */
-function stopComparison() {
-    const map = window.map;
-    if (!map) return;
-
-    // 1. Quitar control
-    if (sideBySideControl) {
         try {
-            map.removeControl(sideBySideControl);
-        } catch (e) {
-            console.warn('Error al remover control:', e);
+            const requests = activeDems.map(dem =>
+                fetch('http://localhost:3001/api/elevation/profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        coordinates,
+                        file: dem,
+                        numSamples: 100
+                    })
+                }).then(r => r.json())
+            );
+
+            const results = await Promise.all(requests);
+            renderMultiElevChart(results, activeDems);
+
+        } catch (err) {
+            console.error(err);
+            alert('Error al obtener perfiles');
         }
+    });
+}
+
+/**
+ * Configura la navegación entre vistas
+ */
+function setupNavigation() {
+    const btn2d = document.getElementById('btn-2d');
+    const btn3d = document.getElementById('btn-3d');
+    const map2dContainer = document.getElementById('map-2d');
+    const map3dContainer = document.getElementById('map-3d');
+
+    if (btn2d) {
+        btn2d.addEventListener('click', () => {
+            map2dContainer.style.display = 'block';
+            map3dContainer.style.display = 'none';
+            btn2d.classList.add('active');
+            btn3d.classList.remove('active');
+        });
     }
 
-    // 2. Limpiar elementos del DOM
-    document.querySelectorAll('.leaflet-sbs').forEach(el => el.remove());
+    if (btn3d) {
+        btn3d.addEventListener('click', () => {
+            alert('Vista 3D en desarrollo');
+        });
+    }
+}
 
-    // 3. Limpiar clips de los panes
-    if (map.getPane('leftPane')) map.getPane('leftPane').style.clip = '';
-    if (map.getPane('rightPane')) map.getPane('rightPane').style.clip = '';
+/**
+ * Renderiza el gráfico de elevación
+ */
+function renderMultiElevChart(results, demNames) {
+    const ctx = document.getElementById('elevChart');
+    if (!ctx) return;
 
-    // 4. Devolver capas al pane original
-    comparisonLayers.forEach(layer => {
-        if (layer) {
-            layer.options.pane = 'tilePane';
-            if (map.hasLayer(layer)) {
-                map.removeLayer(layer);
-                map.addLayer(layer);
+    if (elevChart) elevChart.destroy();
+
+    const colors = ['#2c7be5', '#e74c3c', '#27ae60', '#f39c12', '#9b59b6'];
+    const datasets = results.map((res, idx) => {
+        const rawProfile = res.profile || [];
+        const cleanData = rawProfile
+            .filter(p => p.elevation !== null && p.elevation !== undefined)
+            .map(p => ({ x: parseFloat(p.distance), y: parseFloat(p.elevation) }))
+            .filter(p => !isNaN(p.x) && !isNaN(p.y))
+            .sort((a, b) => a.x - b.x);
+
+        return {
+            label: demNames[idx].replace('_cog.tif', ''),
+            data: cleanData,
+            borderColor: colors[idx % colors.length],
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.2
+        };
+    });
+
+    document.getElementById('profileContainer').style.display = 'flex';
+
+    elevChart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true, position: 'top' }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: 'Distancia (m)' } },
+                y: { title: { display: true, text: 'Elevación (m)' } }
             }
         }
     });
+}
 
-    // 5. Resetear variables y UI
-    sideBySideControl = null;
-    comparisonLayers = [];
-    
-    document.getElementById('btn-compare-orthos').style.display = 'block';
-    document.getElementById('btn-stop-compare').style.display = 'none';
-    
-    map.invalidateSize();
-    console.log('❌ Comparación detenida');
+function closeProfile() {
+    document.getElementById('profileContainer').style.display = 'none';
+    if (drawnItems) drawnItems.clearLayers();
+    if (elevChart) elevChart.destroy();
+}
+
+function initDragProfile() {
+    const dragItem = document.getElementById('profileContainer');
+    const dragHeader = document.getElementById('profileHeader');
+    if (!dragItem || !dragHeader) return;
+
+    let active = false, currentX, currentY, initialX, initialY, xOffset = 0, yOffset = 0;
+
+    dragHeader.addEventListener('mousedown', (e) => {
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+        if (e.target === dragHeader || dragHeader.contains(e.target)) active = true;
+    });
+    document.addEventListener('mouseup', () => {
+        initialX = currentX; initialY = currentY; active = false;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (active) {
+            e.preventDefault();
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+            xOffset = currentX; yOffset = currentY;
+            dragItem.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+        }
+    });
 }
