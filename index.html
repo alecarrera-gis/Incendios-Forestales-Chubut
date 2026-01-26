@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visor Incendios Chubut - Sentinel-2</title>
 
-    <!-- Leaflet Side-by-Side CSS (LOCAL) -->
-    <link rel="stylesheet" href="css/leaflet-side-by-side.css">
+    <!-- 1. CSS de Leaflet (FALTABA ESTO) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
-    <!-- Leaflet Side-by-Side JS (LOCAL) -->
-    <script src="js/leaflet-side-by-side.min.js"></script>
+    <!-- 2. CSS del plugin Side-by-Side -->
+    <link rel="stylesheet" href="css/leaflet-side-by-side.css">
 
     <style>
         body, html {
@@ -148,7 +148,9 @@
 
     <div id="map"></div>
 
-    <!-- 1. Primero Leaflet -->
+    <!-- TODOS LOS SCRIPTS AL FINAL DEL BODY -->
+    
+    <!-- 1. Primero Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- 2. Después el plugin Side-by-Side -->
@@ -156,7 +158,6 @@
 
     <!-- 3. Por último tu código -->
     <script src="main.js"></script>
-</body>
-</html>
+
 </body>
 </html>
