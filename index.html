@@ -103,38 +103,48 @@
             margin-right: 8px;
             background-color: #ff0000;
         }
+        /* Agregá esto dentro de tus etiquetas <style> */
+
+/* En el bloque <style> de tu index.html */
+
+        .leaflet-tile-container img {
+            /* Este filtro hace que los pixeles muy brillantes (blancos) se vuelvan transparentes 
+            mientras mantiene el resto de la imagen opaca para que tape a la anterior */
+            filter: opacity(1); /* Asegura opacidad inicial */
+        }
+
+
     </style>
 </head>
 <body>
-
     <div class="sidebar">
-        <h3>🔥 Incendios Chubut</h3>
+        <h3>🔥 Incendios en Chubut</h3>
         
         <h4>Ortomosaicos Sentinel-2</h4>
         <label>
-            <input type="checkbox" class="ortho-checkbox" value="20251125 Sentinel" data-name="20251125">
-            25 Nov 2025 (Antes)
+            <input type="checkbox" class="ortho-checkbox" value="20251125 Sentinel"> 
+            25 Nov 2025
         </label>
         <label>
-            <input type="checkbox" class="ortho-checkbox" value="20260104 Sentinel" data-name="20260104">
+            <input type="checkbox" class="ortho-checkbox" value="20260104 Sentinel">
             04 Ene 2026
         </label>
         <label>
-            <input type="checkbox" class="ortho-checkbox" value="20260109 Sentinel" data-name="20260109">
+            <input type="checkbox" class="ortho-checkbox" value="20260109 Sentinel">
             09 Ene 2026
         </label>
         <label>
-            <input type="checkbox" class="ortho-checkbox" value="20260119 Sentinel" data-name="20260119">
-            19 Ene 2026 (Más reciente)
+            <input type="checkbox" class="ortho-checkbox" value="20260119 Sentinel">
+            19 Ene 2026
         </label>
-        
-        <div style="margin-top: 15px; font-size: 12px; color: #666;">
-            <p><strong>Instrucciones:</strong></p>
-            <p>1. Seleccioná una o más fechas para ver las imágenes</p>
-            <p>2. Las áreas en rojo son zonas afectadas</p>
-            <p>3. Hacé clic en cualquier área para más información</p>
+        <label>
+            <input type="checkbox" class="ortho-checkbox" value="20260124 Sentinel">
+            24 Ene 2026
+        </label>
         </div>
-    </div>
+
+
+
 
     <div class="legend">
         <h4 style="margin: 0 0 8px 0;">Leyenda</h4>
@@ -145,10 +155,9 @@
     </div>
 
     <div class="info-panel">
-        <h4>Información</h4>
         <p style="margin: 0; font-size: 11px;">
             Sentinel-2 © Copernicus - Chubut<br>
-            Datos actualizados al 19 de enero 2026
+            Datos actualizados al 24 de enero 2026
         </p>
     </div>
 

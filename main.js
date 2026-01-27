@@ -1,107 +1,138 @@
-// Variables globales
-let map;
-let drawnItems;
-let activeOrthoLayers = {};
-
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Iniciando aplicación...');
-    
-    // 1. Inicializar Mapa
-    map = L.map('map', {
-        center: [-42.73, -71.69],
-        zoom: 13,
-        minZoom: 8,
-        maxZoom: 14
-    });
-
-    // Capa base OSM
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    // 2. Configurar checkboxes de ortomosaicos
-    setupOrthoCheckboxes();
-
-    // 3. Cargar GeoJSON de áreas afectadas
-    cargarGeoJSON();
-    
-    console.log('✅ Aplicación iniciada correctamente');
+L.TileLayer.WhiteTransparent = L.TileLayer.extend({
+    createTile: function(coords, done) {
+        const tile = document.createElement('canvas');
+        tile.width = tile.height = 256;
+        const ctx = tile.getContext('2d');
+        const img = new Image();
+        img.crossOrigin = ''; // Para evitar problemas CORS si es necesario
+        
+        img.onload = function() {
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, 256, 256);
+            const data = imgData.data;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const a = data[i + 3];
+                
+                // Calcular luminosidad aproximada (escala de grises)
+                const luminosity = 0.299 * r + 0.587 * g + 0.114 * b;
+                
+                // Condición para hacer transparente:
+                // - Luminosidad alta (muy claro)
+                // - Y los colores no muy saturados (diferencia entre RGB pequeña)
+                const maxRGB = Math.max(r, g, b);
+                const minRGB = Math.min(r, g, b);
+                const diff = maxRGB - minRGB;
+                
+                if (luminosity > 220 && diff < 30) {
+                    data[i + 3] = 0; // Transparente
+                }
+            }
+            
+            ctx.putImageData(imgData, 0, 0);
+            done(null, tile);
+        };
+        
+        img.onerror = function() {
+            done(new Error('Error cargando tile'));
+        };
+        
+        img.src = this.getTileUrl(coords);
+        return tile;
+    }
 });
 
-/**
- * Configura los checkboxes de ortomosaicos
- */
-function setupOrthoCheckboxes() {
+// Función auxiliar para crear la capa fácilmente
+L.tileLayer.whiteTransparent = function(url, options) {
+    return new L.TileLayer.WhiteTransparent(url, options);
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const map = L.map('map', {
+        center: [-42.4530,-71.6061],
+        zoom: 10,
+        minZoom: 8,
+        maxZoom: 14,
+        zoomControl: false
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const activeLayers = {};
+
+    // PRIORIDAD: Los números más altos quedan ARRIBA (tapan a los bajos)
+    const layerPriority = {
+        "20251125 Sentinel": 10,
+        "20260104 Sentinel": 20,
+        "20260109 Sentinel": 30,
+        "20260119 Sentinel": 40,
+        "20260124 Sentinel": 50
+    };
+
     const checkboxes = document.querySelectorAll('.ortho-checkbox');
     
     checkboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const folderName = this.value; // Ej: "20251125 Sentinel"
-            const layerName = this.getAttribute('data-name'); // Ej: "20251125"
+            const folder = this.value;
             
             if (this.checked) {
-                // Crear y agregar la capa
-                // IMPORTANTE: Asegúrate de que la ruta sea correcta
-                const tileUrl = `./${encodeURIComponent(folderName)}/{z}/{x}/{y}.png`;
-                
-                const layer = L.tileLayer(tileUrl, {
+                // Usamos nuestra nueva capa de transparencia real
+                const layer = L.tileLayer.whiteTransparent(`./${folder}/{z}/{x}/{y}.jpg`, {
                     maxZoom: 14,
                     minZoom: 8,
-                    attribution: `Sentinel-2 ${layerName} © Copernicus`,
-                    // Opciones importantes para evitar problemas de carga
-                    tileSize: 256,
-                    noWrap: true,
-                    detectRetina: false,
-                    crossOrigin: true
+                    zIndex: layerPriority[folder] || 1, // Esto hace que lo nuevo tape a lo viejo
+                    attribution: 'Sentinel-2 © Copernicus'
                 });
                 
                 layer.addTo(map);
-                activeOrthoLayers[layerName] = layer;
-                console.log(`✅ Capa ${layerName} activada`);
-                console.log(`🔗 URL de ejemplo: ./${encodeURIComponent(folderName)}/13/2462/160.png`);
+                activeLayers[folder] = layer;
             } else {
-                // Remover la capa
-                if (activeOrthoLayers[layerName]) {
-                    map.removeLayer(activeOrthoLayers[layerName]);
-                    delete activeOrthoLayers[layerName];
-                    console.log(`❌ Capa ${layerName} desactivada`);
+                if (activeLayers[folder]) {
+                    map.removeLayer(activeLayers[folder]);
+                    delete activeLayers[folder];
                 }
             }
         });
     });
-}
 
-/**
- * Carga el GeoJSON de áreas afectadas
- */
-function cargarGeoJSON() {
+    // Cargar GeoJSON (Bordes rojos de áreas afectadas)
+
+
     fetch('Areas_afectadas.geojson')
         .then(response => response.json())
         .then(data => {
             L.geoJSON(data, {
-                style: function () {
-                    return {
-                        color: "#ff0000",
-                        weight: 2,
-                        opacity: 0.8,
-                        fillOpacity: 0
-                    };
+                style: {
+                    color: "#ff0000",
+                    weight: 3,
+                    fillOpacity: 0, // Un toque de color adentro ayuda a poder hacer clic mejor
+                    fillColor: "#ff0000"
                 },
-                onEachFeature: function (feature, layer) {
-                    if (feature.properties) {
-                        let popupContent = '<strong>Área Afectada</strong><br>';
-                        for (let key in feature.properties) {
+            onEachFeature: function (feature, layer) {
+                if (feature.properties) {
+                    let popupContent = '<div style="font-family: Arial; min-width: 150px;">';
+                    popupContent += '<h4 style="margin:0 0 5px 0; color: #d32f2f;">🔥 Área Afectada</h4>';
+                    popupContent += '<hr style="border: 0; border-top: 1px solid #eee;">';
+
+                    for (let key in feature.properties) {
+                        // AQUÍ AGREGAMOS LA EXCEPCIÓN:
+                        // Si la clave es 'id', 'ID', 'fid' o cualquier otra que quieras ocultar, la saltamos
+                        if (key.toLowerCase() !== 'id' && key.toLowerCase() !== 'fid') {
                             popupContent += `<strong>${key}:</strong> ${feature.properties[key]}<br>`;
                         }
-                        layer.bindPopup(popupContent);
                     }
+
+                    popupContent += '</div>';
+                    layer.bindPopup(popupContent);
                 }
+            }
             }).addTo(map);
-            console.log('✅ GeoJSON cargado correctamente');
+            console.log('✅ GeoJSON con popups cargado');
         })
-        .catch(error => {
-            console.error('❌ Error cargando el GeoJSON:', error);
-            console.log('ℹ️ Asegurate de que el archivo Areas_afectadas.geojson esté en la raíz del proyecto');
-        });
-}
+        .catch(error => console.error('❌ Error:', error));
+});
